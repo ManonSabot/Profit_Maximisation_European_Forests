@@ -1,0 +1,15 @@
+### This file has the info about the drought years (to automate the runs)
+
+## it is set up like Site: yr1, (yr2, etc.)
+
+Soroe: 2002, 2003, 2005, 2006
+ElSaler1: 2002, 2003
+Hyytiala: 2002, 2003, 2005, 2006
+Hesse: 2002, 2003
+Puechabon: 2002, 2003, 2005, 2006
+Parco: 2002, 2003
+Rocca1: 2002, 2003, 2005, 2006
+Rocca2: 2002, 2003, 2005, 2006
+Loobos: 2002, 2003, 2005, 2006
+Espirra: 2002, 2003
+

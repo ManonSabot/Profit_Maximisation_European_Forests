@@ -1,0 +1,10 @@
+Soroe: var_kmax_adjust_extreme
+ElSaler1: var_kmax_adjust_average
+Hyytiala: var_kmax_adjust_extreme
+Hesse: var_kmax_adjust_average
+Puechabon: var_kmax_adjust_extreme
+Parco: var_kmax_adjust_extreme
+Rocca1: var_kmax_adjust_average
+Rocca2: var_kmax_adjust_average
+Loobos: var_kmax_adjust_extreme
+Espirra: var_kmax_adjust_average
