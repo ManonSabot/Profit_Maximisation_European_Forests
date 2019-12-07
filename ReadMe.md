@@ -9,6 +9,8 @@ Repository containing all the code to reproduce the results in
 Sabot et al. (2019): Plant profit maximisation improves predictions of European 
 forest responses to drought. New Phytologist, Accepted.
 
+[![DOI](https://zenodo.org/badge/200143859.svg)](https://zenodo.org/badge/latestdoi/200143859)
+
 ## General instructions
 
 To make sure the model is properly set up, simply type:
