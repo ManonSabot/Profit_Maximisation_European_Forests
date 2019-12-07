@@ -1,0 +1,134 @@
+### The TractLSM can be used in several configurations, determined by a number
+### of switches supplied to run the model. Therefore, this text file is a setup
+### file equivalent to the namelist in LSMs.
+
+# Throughout the file, 'None' or 'default' entries are the equivalent of
+# commenting out the lines.
+# When giving a file name, the absolute path is needed.
+
+
+## 1. Site level runs
+
+# The site can be set to match a meteorological forcings file for a specific
+# site, e.g. 'Rocca'. Alternatively, 'None' calls a weather generator which uses
+# idealised meteorological forcings to run the model.
+# At a given site, the run year must also be specifed. If using the weather
+# generator, the year must be set to 'None'.
+
+site = None
+year = None
+
+
+# When running the model at site level, the actual switch can be set to 'no' to
+# run a spinup (year -1). This spinup will be used to initialise the soil
+# moisture state of the actual site and year run.
+# If the switch is set to 'yes', then the given year with either the soil
+# moisture initialisation from the spinup run (when it exists), or the
+# parameterised saturation point, is run.
+
+actual = yes
+
+
+## 2. Specifications for the weather generator
+
+# The weather generator should preferably be called upon when running an
+# idealised experiment. Yet, a start day (e.g. doy = 1, i.e. Jan 1st) and a
+# duration for the run (e.g. Nday = 1. runs for the start day only) have to be
+# chosen. If the model is being run at site level, it does not matter what the
+# doy and Ndays switches equate to.
+
+doy = 1.
+Ndays = 1.
+
+
+## 3. Using a specific set of parameters
+
+# Specific parameters should either be kept in a csv file (e.g. containing
+# sites' info) or in a class within a python file (setup like the default
+# parameters in TractLSM/Utils/).
+# When importing the parameters from a python class, the import can differ
+# depending on your machine. So you might have to modify the retrieve_class
+# function in TractLSM/Utils/general_utils.py, which is not recommended.
+
+params = default
+
+
+## 4. Choosing the model configuration
+
+# If you do not want to run the model for the full length of the timeseries
+# (e.g. only running for the first 10 hours for testing purposes), you must
+# specify the number of timesteps if must be run for. If no timestep number is
+# specified, the full length of the timeseries is run.
+
+Nsteps = default
+
+
+# The models switch allows you to pick the C-H2O flux solver(s). If the switch
+# is left unspecified (i.e. commented out or set to 'None'), the default
+# configurations are run.
+# These default choices are: 'Control, ProfitMax'.
+# All possible choices are: 'Control, ProfitMax12, Wolf16'.
+# Any single one of those configurations can be run alone.
+
+models = default
+
+
+# The Farquhar photosynthesis model is the default recommended photosynthesis
+# model. The Collatz model can be run instead by chosing 'Collatz'.
+
+photo = default
+
+
+# The matricial optimisation solver runs at a relatively 'low' resolution, by
+# default. When running the model on short timescales, it is worth exploring the
+# effects of running at 'med' or 'high' resolutions.
+
+resolution = default
+
+
+# By default, the optimisation solver is called for every timestep provided in
+# the forcing data. However, it can also be called to run for a given frequency.
+# For example, a frequency of 3 will only call the optimisation solver every 3rd
+# timestep in the forcing data.
+
+fopt = default
+
+
+# By default, the optimisation solver is allowed to search for the point of
+# maximum profit on the full hydraulic stream. To speed up the optimisation, 
+# restrictions can be applied to limit the portion of the stream on which to
+# search for maximum profit. For example, a window of '20' binds the search in
+# +/- 20% range relative to the previous maximum profit point.
+# N.B.: one must be careful not to introduce solving artefacts in combining
+# this option with the fopt option
+
+window = default
+
+
+# The tag refers to the unique name associated with the model configuration of
+# the run. By default, this is based on the models that have been called upon, 
+# such that the tag 'CP' refers to the Control + ProfitMax.
+# However, any tag can be specified by the user.
+
+tag = default
+
+
+## 5. Generating default figures
+
+# If plot is set to 'yes', several figures are generated, depending on the
+# configuration of the run. These can be: a comparison of the different
+# optimisation configurations, a comparison of the different optimisation
+# configurations with the Control, or a comparison of the Farquhar and Collatz
+# photosynthesis models.
+
+plot = yes
+
+
+## 6. Assigning the model run to a specific project
+
+# When no project name is specified, all input and output files are stored
+# directly in the input & output repositories. Otherwise, input and output files
+# are stored in folders named after the project, e.g. input/var_kmax/ or
+# output/var_kmax.
+
+project = None

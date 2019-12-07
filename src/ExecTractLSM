@@ -1,0 +1,804 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+Code that executes the tractable LSM according to what is in the run
+file. The line to run it is: ExecTractLSM irun.txt
+
+This file is part of the TractLSM project.
+
+Copyright (c) 2019 Manon E. B. Sabot
+
+Please refer to the terms of the MIT License, which you should have
+received along with the TractLSM.
+
+"""
+
+__title__ = "Execute TractLSM"
+__author__ = "Manon E.B. Sabot"
+__version__ = "1.0 (29.01.2018)"
+__email__ = "m.e.b.sabot@gmail.com"
+
+
+# ======================================================================
+
+import warnings  # ignore these warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+
+# import general modules
+import argparse  # read in the set up file
+import os  # check for files and so on
+import pandas  # read/write dataframes, csv files
+
+# own modules
+from TractLSM import InForcings  # met data & params
+from TractLSM.Utils import get_script_dir  # get this script's directory
+from TractLSM.Utils import retrieve_class, read_csv  # read in files
+from TractLSM import hrun  # run LSM for N time steps
+
+# plotting built-in modules
+from TractLSM import FigInfo, plt_intra_std_n_opt
+from TractLSM import plt_intra_psi_opt, plt_Farq_Col
+
+
+# ======================================================================
+
+def main(fname, photo='Farquhar', models=None, resolution=None, fopt=None,
+         window=None, tag=None, Nsteps=None, year=None, params=None,
+         plot=None):
+
+    """
+    Main function: checks whether the input data (os.path.isfile) and
+                   output runs exist (read_csv); if not, generates the
+                   input data (InForcings) and runs the models (run);
+                   makes plots (plot).
+
+    Arguments:
+    ----------
+    fname: string
+        input filename (with path), must be stored in the input/ folder
+
+    photo: string
+        either the Farquhar model for photosynthesis, or the Collatz
+        model
+
+    models: list of string
+        models to be considered in this experiment. The possibilities
+        are: Control, any ProfitMax option (ProfitMax12, ProfitMax1, or
+        simply ProfitMax)
+
+    resolution: string
+        either 'low' (default), 'med', or 'high' to run the optimising
+        solver
+
+    fopt: int
+        frequency of optimisation
+
+    window: float
+        solving window around the last point of optimisation
+
+    Nsteps: int
+        must be specified if the user decides to run the models or plot
+        a shorter timeseries than the full length of the input
+        timeseries. If not specified, Nsteps will be
+        Ndays * Ntimesteps_per_day
+
+    year: int
+        selected run year
+
+    params: string
+        param file path, the param file can be a class or a csv file
+
+    plot: string
+        if 'yes', default plots will be generated
+
+    Returns:
+    --------
+    Saves output files and figures to, respectively, the output/ folder
+    and the output/figures folder.
+
+    """
+
+    # spinup run: check for close names to find spinup
+    if 'spinup' in fname:
+        fname = check_close_name(fname)
+
+    # if no input met data & environmental params exist, generate them
+    if not os.path.isfile(fname):
+
+        alphas = ''.join([a for a in fname if a.isalpha()])
+        no_alphas = ''.join([c for c in fname if c not in alphas])
+        no_alphas_left = ''.join(no_alphas.split('-')[:-1])
+        no_alphas_right = ''.join(no_alphas.split('-')[-1:])
+
+        if params is None:
+            params = InForcings().defparams
+
+        elif '.py' in params:
+            params = retrieve_class(params)
+
+        try:  # if doy in fname, use weather generator
+            doy = float(''.join(no_alphas_left.split('_')[-1:]))
+            Ndays = float(no_alphas_right) - doy + 1.
+
+            if (doy == year) or (Ndays == year):
+                raise ValueError
+
+            params.doy = doy - 1.  # if doy(user) = 1, it's Jan 1
+            InForcings().run(fname, params, Ndays=int(Ndays))
+
+        except ValueError:  # no doy in name, use fluxnet forcing
+            InForcings().run(fname, params, Ndays=None, year=year)
+
+    # fname of output (fname2), based on the fname of input (fname)
+    base_dir = get_script_dir()
+
+    while 'src' in base_dir:
+        base_dir = os.path.dirname(get_script_dir())
+
+    input_dir = os.path.join(os.path.basename(base_dir), 'input')
+    output_dir = os.path.join(os.path.basename(base_dir), 'output')
+    fname2 = fname.replace(input_dir, output_dir)
+
+    # get tag for the run and add to end of output file name
+    if tag is None:
+        tag = run_tag(models, resolution, fopt, window, Nsteps)
+
+    if ('spinup' in fname2) or ('actual' in fname2):
+        fname2 = fname2.replace('met_and_plant_data', photo + '_' + tag)
+
+    else:
+        fname2 = fname2.replace('met_and_plant', photo + '_' + tag)
+
+    # create output_dir if it doesn't exist
+    if not os.path.isdir(os.path.dirname(fname2)):
+        try:
+            os.makedirs(os.path.dirname(fname2))
+
+        except OSError:  # handle error created by parallelisation
+            pass
+
+    if os.path.isfile(fname2):  # check that output exists
+        if plot is not None:  # only read to plot
+            df1, __ = read_csv(fname)
+            df2, __ = read_csv(fname2)
+
+    else:  # create corresponding output of standard model & opt
+        df1, __ = read_csv(fname)
+
+        if 'actual' in fname2:
+            df1 = start_soil(df1, fname2, photo, year)
+
+        if (Nsteps is None) or (Nsteps > len(df1.index)):
+            Nsteps = len(df1.index)
+
+        if models is not None:
+            df2 = hrun(fname2, df1, Nsteps, photo, models=models,
+                       resolution=resolution, fopt=fopt, window=window)
+
+        else:
+            df2 = hrun(fname2, df1, Nsteps, photo, resolution=resolution,
+                       fopt=fopt, window=window)
+
+    # plot
+    if plot is not None:
+
+        try:  # comparative output (fname3), based on current (fname2)
+
+            if photo == 'Farquhar':
+                fname3 = fname2.replace(photo, 'Collatz')
+                df3, __ = read_csv(fname3)
+
+            else:
+                fname3 = fname2.replace(photo, 'Farquhar')
+                df2, __ = read_csv(fname3)  # df2 is always Farquhar
+                df3, __ = read_csv(fname2)  # df3 is always Collatz
+
+        except IOError:  # if not, no inter-photo-model comparison plot
+            pass
+
+        # psi cases? (for optimisations)
+        if models is not None:
+            psi_case = int([e for e in models if (('ProfitMax' in e) and
+                            ('ProfitMax2' not in e))][0][-1])
+
+        else:
+            psi_case = 2
+
+        try:  # two-plot (An & E) comparison of ProfitMax & Control
+            plotplot(df1, df2, photo, project=os.path.dirname(fname2),
+                     Control='yes', psi_case=psi_case, force_write='yes')
+
+        except Exception:
+            pass
+
+        try:  # two-plot (An & E) comparison of the ProfitMax options
+            plotplot(df1, df2, photo, project=os.path.dirname(fname2),
+                     psi_case='all', force_write='yes')
+
+        except Exception:
+            pass
+
+        try:  # two-plot (An & E), Farquhar vs Collatz photo-models
+            plotplot(df1, df2, photo, df3=df3, project=os.path.dirname(fname2),
+                     psi_case=psi_case, force_write='yes')
+
+        except Exception:
+            pass
+
+    return
+
+
+# ======================================================================
+
+# ~~~ Other functions are defined here ~~~
+
+def read_var(strvar, strl):
+
+    """
+    Looks for the value of a variable in a string
+
+    Arguments:
+    ----------
+    strvar: string
+        specific var name
+
+    strl: string
+        string within which the var is being looked for
+
+    Returns:
+    --------
+    var: changing type
+        value/content of the variable
+
+    """
+
+    if strvar + ' = ' in strl:
+        var = strl.split('= ', 1)[1]
+
+        if (var == 'None') or (var == 'default') or (var == 'no'):
+            var = None
+
+        elif ((strvar == 'year') or (strvar == 'Nsteps') or (strvar == 'fopt')
+              or (strvar == 'window')):
+            var = int(var)
+
+        elif (strvar == 'doy') or (strvar == 'Ndays'):
+            var = float(var)
+
+        elif (strvar == 'models'):
+            if (',' in var):
+                var2 = var.split(', ')
+
+                if len(var2) < 2:  # needed on some systems
+                    var2 = var.split(',')
+
+                var = var2
+
+            else:
+                var = [var]
+
+        return var
+
+    else:
+        return
+
+
+def vars_ifile(ifile):
+
+    """
+    Reads txt file used to set up variables to run the model.
+
+    Arguments:
+    ----------
+    ifile: string
+        input filename parsed as an argument (in same dir as this
+        script)
+
+    Returns:
+    --------
+    site: string
+        either the name of the fluxnet site at which the model is being
+        run or None if this is an idealised experiment
+
+    year: int
+        either the year that's being looked at a fluxnet site or None if
+        this is an idealised experiment
+
+    actual: string
+        'yes' runs the specified year, 'no' runs a spinup for the
+        previous year than that defined, to initialise soil moisture
+        conditions
+
+    doy: float
+        to be defined if the model is run for testing or for the purpose
+        of an idealised experiment. Start day doy = 1. is Jan 1st
+
+    Ndays: float
+        duration for which testing or an idealised experiment lasts.
+        Ndays = 2. runs for two days, start day (e.g. doy) included
+
+    params: string
+        path to the local parameter file used to force the model
+
+    Nsteps: int
+        must be specified if the user decides to run the models or plot
+        a shorter timeseries than the full length of the input
+        timeseries. If not specified, the full length of the timeseries
+        is run
+
+    models: list of strings
+        model configurations to be run, e.g. Control, ProfitMax2
+
+    resolution: string
+        resolution for which the optimisation solver is ran. The default
+        mode is 'low', but 'med' and 'high' can also be requested
+
+    fopt: string or int
+        frequency upon which the optimisation solver is called, by
+        default every forcing data step
+
+    window: string or int
+        window to bind the new optimisation to be in a +/- N% range
+        relative to the previous optimisation. By default, there is no
+        binding
+
+    tag: string
+        refers to the run name one wants to attribute. If not specified,
+        this is by default, based of the models run
+
+    photo: string
+        either 'Farquhar' (also if not specified by user) or 'Collatz'
+
+    plot: string
+        'yes' to generate default built-in plots
+
+    project: string
+        either name of the directory in which this project will be
+        stored, both in data and in output, or none
+
+    """
+
+    site = None
+    year = None
+    actual = None
+    doy = None
+    Ndays = None
+    params = None
+    Nsteps = None
+    models = None
+    resolution = None
+    fopt = None
+    window = None
+    tag = None
+    photo = None
+    plot = None
+    project = None
+
+    with open(ifile, 'r') as f:
+
+        for line in f:
+
+            ll = line.strip()
+
+            if not ll.startswith("#"):
+                ll = ll.rstrip()
+
+                if site is None:
+                    site = read_var('site', ll)
+
+                if year is None:
+                    year = read_var('year', ll)
+
+                if actual is None:
+                    actual = read_var('actual', ll)
+
+                if doy is None:
+                    doy = read_var('doy', ll)
+
+                if Ndays is None:
+                    Ndays = read_var('Ndays', ll)
+
+                if params is None:
+                    params = read_var('params', ll)
+
+                if Nsteps is None:
+                    Nsteps = read_var('Nsteps', ll)
+
+                if models is None:
+                    models = read_var('models', ll)
+
+                if resolution is None:
+                    resolution = read_var('resolution', ll)
+
+                if fopt is None:
+                    fopt = read_var('fopt', ll)
+
+                if window is None:
+                    window = read_var('window', ll)
+
+                if tag is None:
+                    tag = read_var('tag', ll)
+
+                if photo is None:
+                    photo = read_var('photo', ll)
+
+                if plot is None:
+                    plot = read_var('plot', ll)
+
+                if project is None:
+                    project = read_var('project', ll)
+
+    if actual is None:  # make sure the spinup only runs for the Control
+        models = 'Control'
+
+    return (site, year, actual, doy, Ndays, params, Nsteps, models, resolution,
+            fopt, window, tag, photo, plot, project)
+
+
+def check_close_name(fname):
+
+    """
+    Finds similarly named file up to a 3 character difference.
+
+    Arguments:
+    ----------
+    fname: string
+        filename (with path)
+
+    Returns:
+    --------
+    fname: string
+        close enough existing filename (with path)
+
+    """
+
+    if (('Roots' in fname) or ('Roots'.lower() in fname) or
+       ('Zbottom' in fname) or ('Zbottom'.lower() in fname) or
+       ('Depth' in fname) or ('Depth'.lower() in fname)):
+
+        return fname  # in those cases, the spinup must be rerun!
+
+    else:
+        file_dir = os.path.dirname(fname)
+        site_name = ''.join(fname.split(file_dir)[-1:]).split('_')[0][1:]
+        fname_right = ''.join(fname.split(site_name)[-1:])
+        fname_new = os.path.join(file_dir, '%s%s' % (site_name[:-1],
+                                 fname_right))
+
+        if not os.path.isfile(fname_new):
+            fname_new = fname_new.replace(site_name[:-1], site_name[:-2])
+
+            if not os.path.isfile(fname_new):
+                fname_new = fname_new.replace(site_name[:-2], site_name[:-3])
+
+        if os.path.isfile(fname_new):
+
+            return fname_new
+
+        else:
+
+            return fname
+
+
+def run_tag(models, resolution, fopt, window, Nsteps):
+
+    """
+    Reads model names and returns the first letter of each, keeping the
+    numbers when applicable, thus creating a tag. For example, 'Control,
+    ProfitMax12' yields CP12.
+
+    Arguments:
+    ----------
+    models: list of string
+        models to be considered in this experiment
+
+    resolution: string
+        resolution for which the optimisation solver is ran. The default
+        mode is 'low', but 'med' and 'high' can also be requested
+
+    fopt: string or int
+        frequency upon which the optimisation solver is called, by
+        default every forcing data step
+
+    window: string or int
+        window to bind the new optimisation to be in a +/- N% range
+        relative to the previous optimisation. By default, there is no
+        binding
+
+    Nsteps: int
+        number of steps if the user decides to run the models or plot a
+        shorter timeseries than the full length of the input timeseries.
+        If not specified, Nsteps will be Ndays * Ntimesteps_per_day
+
+    Returns:
+    --------
+    tag: string
+        ID of the models & configurations used for the run
+
+    """
+
+    if models is None:
+        tag = 'D'  # default models
+
+    else:
+        if len(models) > 1:
+            tag = ''
+
+            for i in models:  # add first letter of each model
+
+                modnum = ''.join(j for j in i if j.isdigit())
+                tag += i[0] + modnum
+
+        else:
+            tag = models[0]
+
+    if tag != 'Control':
+        if resolution is None:
+            tag += '-Rlow'
+
+        else:
+            tag += '-R%s' % (resolution)
+
+        if fopt is not None:
+            tag += '-F%d' % (fopt)
+
+        if window is not None:
+            tag += '-W%d' % (window)
+
+        if Nsteps is not None:
+            tag += '-N%d' % (Nsteps)
+
+    return tag
+
+
+def start_soil(df1, fname, photo, year):
+
+    """
+    Reads the end of year sw from spinup run if it exists for the site.
+    Then assigns that state to the met forcing & plant info data. The
+    file site name must have been changed by a max of three characters
+    for non spinup runs!
+
+    Arguments:
+    ----------
+    df1: pandas series
+        dataframe containing all the csv data, units header dropped
+
+    fname2: string
+        output filename (with path)
+
+    photo: string
+        either the Farquhar model for photosynthesis, or the Collatz
+        model
+
+    year: int
+        either the year that's being looked at a fluxnet site or None if
+        this is an idealised experiment
+
+    Returns:
+    --------
+    df1: pandas series
+        dataframe containing all the met and plant data and, when
+        possible, the soil state
+
+    """
+
+    try:
+
+        spinup = fname.replace('actual_%d.csv' % (year),
+                               'spinup_%d.csv' % (year))
+
+        if not os.path.isfile(spinup):
+            spinup = spinup.replace(spinup.split('%s_' % (photo))[1],
+                                    'Control_spinup_%d.csv' % (year))
+
+        if not os.path.isfile(spinup):
+            spinup = check_close_name(spinup)
+
+        if not os.path.isfile(spinup):
+            spinup = spinup.replace('Control_spinup', 'spinup')
+
+        if not os.path.isfile(spinup):
+            spinup = check_close_name(spinup)
+
+        if os.path.isfile(spinup):
+            df3, __ = read_csv(spinup)
+
+        # select last values from spinup & repeat to fit size of df1
+        sw0 = df3.iloc[-1, df3.columns.get_loc('sw(std)')].repeat(len(df1))
+
+        # assign to df1
+        df1 = df1.assign(sw0=sw0)
+
+    except (IOError, AttributeError, NameError):
+        pass
+
+    return df1
+
+
+def plotplot(df1, df2, photo, df3=None, project=None, Control='no', psi_case=2,
+             force_write='no'):
+
+    """
+    Plots the model's outputs (plt_ functions) and names the figure(s)
+    based on the input parameters (FigInfo).
+    The figure name is of the form:
+        path/photo-(Control)-P50-P98-kmax-doy1-doy2_tag#.pdf
+
+    Arguments:
+    ----------
+    df1: pandas series
+        dataframe containing the input met data & environmental
+        parameters
+
+    df2: pandas series
+        dataframe containing outputs either generated using the Farquhar
+        photosynthesis model or the Collatz photosynthesis model. If
+        photo = 'Farquhar' and the plt_Farq_Col function is called, then
+        this should be the Farquhar data. Otherwise, it should be the
+        Collatz data
+
+    photo: string
+        either the Farquhar model for photosynthesis, or the Collatz
+        model
+
+    df3: pandas series
+        dataframe containing outputs either generated using the Farquhar
+        photosynthesis model or the Collatz photosynthesis model. This
+        argument only needs to be declared when the plt_Farq_Col
+        function is called. If that is the case and photo = 'Farquhar',
+        then this should be the Collatz data. Otherwise, it should be
+        the Farquhar data
+
+    project: string
+        name (path) of project the output is stored in
+
+    Control: string
+        Control = 'yes' if the optimization data is to be plotted in
+        comparison to the standard Control approach of solving for An
+        and E. This argument is to be declared when calling
+        plt_intra_std_n_opt
+
+    psi_case: int or string
+        1 or 2 (corresponding to one of the ProfitMax optimisatio
+         methods) when calling any of the plt_ functions
+
+    force_write: string
+        force_write = 'yes' rewrites a figure even when a figure with
+        the same metadata (FigInfo) has previously been generated
+
+    Returns:
+    --------
+    Saves the figures to the output/figures folder in pdf format. The
+    possible standard figures are generated by:
+
+        plt_intra_std_n_opt: a two plot comparison -- (i) An, (ii) E --
+                             of the ProfitMax and standard/Control
+                             outputs;
+
+        plt_intra_psi_opt: a two plot comparison comparison of the 2
+                           different ProfitMax optimization cases;
+
+        plt_Farq_Col: a two plot comparison of the optimization and
+                      standard/Control output for the Farquhar
+                      photosynthesis model vs the Collatz model.
+
+    """
+
+    # read params & met data
+    md = FigInfo(df1)
+
+    # name string
+    if df3 is None:
+        if Control == 'no':
+            name_str = (photo + '-' + md.P50 + '-' + md.P88 + '-' +
+                        md.kmax + '-' + md.doy + '-' + md.doy2)
+
+        if Control == 'yes':
+            name_str = (photo + '-Control-' + md.P50 + '-' + md.P88 + '-' +
+                        md.kmax + '-' + md.doy + '-' + md.doy2)
+
+        if psi_case == 'all':
+            name_str = (photo + '-all_psi-' + md.P50 + '-' + md.P88 +
+                        '-' + md.kmax + '-' + md.doy + '-' + md.doy2)
+
+    if df3 is not None:
+        if photo == 'Collatz':
+            name_str = ('Farquhar-' + photo + '-' + md.P50 + '-' +
+                        md.P88 + '-' + md.kmax + '-' + md.doy + '-' + md.doy2)
+
+        if photo == 'Farquhar':
+            name_str = (photo + '-Collatz-' + md.P50 + '-' + md.P88 +
+                        '-' + md.kmax + '-' + md.doy + '-' + md.doy2)
+
+    # figures directory
+    fig_dir = os.path.join(project, 'figures')
+
+    if not os.path.isdir(fig_dir):  # create fig_dir if it doesn't exist
+        try:
+            os.makedirs(fig_dir)
+
+        except OSError:  # handle error created by parallelisation
+            pass
+
+    # output figure name (path included)
+    fpname = os.path.join(fig_dir, '%s.pdf' % (name_str))
+
+    # built-in plotting functions
+    if Control == 'yes':
+        plt_intra_std_n_opt(fpname, df1, df2, psi_case)
+
+    if psi_case == 'all':
+        plt_intra_psi_opt(fpname, df1, df2)
+
+    if df3 is not None:
+        if photo == 'Collatz':
+            plt_Farq_Col(fpname, df1, df3, df2, psi_case)
+
+        if photo == 'Farquhar':
+            plt_Farq_Col(fpname, df1, df2, df3, psi_case)
+
+    return
+
+
+# ======================================================================
+
+if __name__ == "__main__":
+
+    # define the argparse settings to read run set up file
+    description = "Run and/or plot the tractable LSM framework for a \
+                   specific set of conditions"
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument('ifile', type=str,
+                        help='input set up file name, e.g. irun.txt')
+    args = parser.parse_args()
+
+    # read run set up file
+    site, year, actual, doy, Ndays, params, Nsteps, models, resolution, \
+        fopt, window, tag, photo, plot, project = vars_ifile(args.ifile)
+
+    # fname depending on method used: fluxnet site or weather generator
+    base_dir = get_script_dir()
+
+    while 'src' in base_dir:
+        base_dir = os.path.dirname(get_script_dir())
+
+    fname = os.path.join(base_dir, 'input')  # input data dir path
+
+    if project is not None:  # input data for specific project
+        fname = os.path.join(fname, os.path.join('projects', project))
+
+    if not os.path.isdir(fname):  # create dir if it doesn't exist
+        try:
+            os.makedirs(fname)
+
+        except OSError:  # handle error created by parallelisation
+            pass
+
+    # name of input data file to work with
+    if (site is not None) and (year is not None):
+        if actual == 'yes':
+            fname = os.path.join(fname, '%s_met_and_plant_data_actual_%d.csv'
+                                 % (site, year))
+
+        else:
+            fname = os.path.join(fname, '%s_met_and_plant_data_spinup_%d.csv'
+                                 % (site, year))
+
+    else:
+        days = str(int(doy)) + '-' + str(int(doy + Ndays - 1))
+        fname = os.path.join(fname, 'diurnal_met_and_plant_%s.csv' % (days))
+
+    # call the main function depending on declared vars
+    if photo is not None:
+        main(fname, photo=photo, models=models, resolution=resolution,
+             fopt=fopt, window=window, tag=tag, Nsteps=Nsteps, year=year,
+             params=params, plot=plot)
+
+    if photo is None:
+        main(fname, models=models, resolution=resolution, fopt=fopt,
+             window=window, tag=tag, Nsteps=Nsteps, year=year, params=params,
+             plot=plot)

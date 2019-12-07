@@ -1,0 +1,14 @@
+# python generated dependencies
+*.pyc
+**.pyc
+*.py~
+**.py~
+__pycache__
+
+# all other backups
+*.md~
+**.md~
+*.txt~
+**.txt~
+*.csv~
+**.csv~
