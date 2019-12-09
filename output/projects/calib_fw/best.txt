@@ -1,0 +1,20 @@
+Soroe: fws151
+sens. fw function: 1.0, nudge fc: 0.05, nudge pwp: 0.0
+ElSaler1: fws232
+sens. fw function: 6.0, nudge fc: -0.05, nudge pwp: 0.05
+Hyytiala: fws168
+sens. fw function: 2.0, nudge fc: -0.05, nudge pwp: 0.05
+Hesse: fws190
+sens. fw function: 4.0, nudge fc: 0.05, nudge pwp: -0.1
+Puechabon: fws264
+sens. fw function: 8.0, nudge fc: -0.05, nudge pwp: 0.05
+Parco: fws232
+sens. fw function: 6.0, nudge fc: -0.05, nudge pwp: 0.05
+Rocca1: fws175
+sens. fw function: 3.0, nudge fc: 0.1, nudge pwp: -0.1
+Rocca2: fws162
+sens. fw function: 2.0, nudge fc: 0.05, nudge pwp: -0.05
+Loobos: fws168
+sens. fw function: 2.0, nudge fc: -0.05, nudge pwp: 0.05
+Espirra: fws162
+sens. fw function: 2.0, nudge fc: 0.05, nudge pwp: -0.05
