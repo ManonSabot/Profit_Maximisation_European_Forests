@@ -12,3 +12,7 @@ __pycache__
 **.txt~
 *.csv~
 **.csv~
+*.sh~
+**.sh~
+*.mk~
+**.mk~

@@ -1,0 +1,20 @@
+Soroe: Roots1
+rooting depth: 0.32299364816050635
+ElSaler1: Roots20
+rooting depth: 1.248429650125627
+Hyytiala: 
+rooting depth: 0.2779317477654583
+Hesse: Roots3
+rooting depth: 0.4136471389082272
+Puechabon: Roots22
+rooting depth: 1.3599942792004556
+Parco: Roots24
+rooting depth: 1.4678924785685996
+Rocca1: Roots16
+rooting depth: 1.0725053581995694
+Rocca2: Roots16
+rooting depth: 1.0725053581995694
+Loobos: 
+rooting depth: 0.2544618596430496
+Espirra: Roots20
+rooting depth: 1.2563308394935309
