@@ -255,9 +255,9 @@ def mtx_minimize(p, trans, all_Cis, photo, case):
 
     """
 
-    supply, __, __ = calc_photosynthesis(p, np.expand_dims(trans, axis=1),
+    demand, __, __ = calc_photosynthesis(p, np.expand_dims(trans, axis=1),
                                          all_Cis, photo)
-    demand = A_trans(p, np.expand_dims(trans, axis=1), all_Cis)
+    supply = A_trans(p, np.expand_dims(trans, axis=1), all_Cis)
 
     if case == 1:  # pick first Ci for which An(supply) >= An(demand)
         idx = bn.nanargmax(supply - demand >= 0., axis=1)  # 1st True
