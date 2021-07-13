@@ -1,7 +1,7 @@
 all: run_experiments plot_results
 
 run_experiments:
-	src/predicting_kmax.sh -A
+	src/predict_kmax.sh -A
 	src/var_solver_accuracy.sh
 
 plot_results:
