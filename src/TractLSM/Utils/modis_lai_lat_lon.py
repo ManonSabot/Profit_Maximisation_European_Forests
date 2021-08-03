@@ -386,11 +386,11 @@ def get_data(data_array, url, header, prod, lat, lon, band, dates, dt1, dt2,
 
         data_array.append(vals)  # append data
 
-        if long_name:
+        if long_name is not False:
             long_name.append('%s.%s.%s.%s.%s' % (prod, tstep['modis_date'],
                              tstep['tile'], tstep['proc_date'], band))
 
-    if long_name:
+    if long_name is not False:
         return data_array, long_name
 
     return data_array
