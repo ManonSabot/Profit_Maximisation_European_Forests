@@ -527,7 +527,8 @@ def screen_data(lai, sd, qc, dates):
     qc = ~np.isin(qc.values, mask)
 
     # screen LAI data
-    lai = pd.DataFrame(lai, index=pd.to_datetime(dates))[qc]
+    lai = pd.DataFrame(lai, index=pd.to_datetime(dates))
+    lai.mask(qc, inplace=True)
 
     # SD screening
     sd = pd.DataFrame(sd, index=[(pd.to_datetime(dates).year),
