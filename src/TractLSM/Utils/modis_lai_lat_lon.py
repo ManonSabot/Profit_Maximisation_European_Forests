@@ -524,8 +524,7 @@ def screen_data(lai, sd, qc, dates):
             0b10010001, 0b10011111, 0b10011110, 0b10011101, 0b10011100,
             0b10011011, 0b10011010, 0b10011000, 0b10011001]  # int
     mask += [255, 254, 252, 251, 250, 248]  # Fill Values
-    qc.replace(mask, False)
-    qc = np.asarray([True if e is not False else False for e in qc])
+    qc = ~np.isin(qc.values, mask)
 
     # screen LAI data
     lai = pd.DataFrame(lai, index=pd.to_datetime(dates))[qc]
